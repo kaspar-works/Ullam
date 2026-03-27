@@ -143,7 +143,7 @@ struct DiariesGalleryView: View {
 
             HStack(spacing: 0) {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("\(diary.pages.count)")
+                    Text("\((diary.pages?.count ?? 0))")
                         .font(.system(size: 28, weight: .bold))
                         .foregroundStyle(.white)
                     Text("ENTRIES")
@@ -207,7 +207,7 @@ struct DiariesGalleryView: View {
                     .font(.system(size: 15, weight: .bold))
                     .foregroundStyle(.white)
 
-                Text("\(diary.pages.count) entries · \(diary.storagePreference == .iCloud ? "iCloud" : "Local")")
+                Text("\((diary.pages?.count ?? 0)) entries · \(diary.storagePreference == .iCloud ? "iCloud" : "Local")")
                     .font(.system(size: 12))
                     .foregroundStyle(AppTheme.dimText)
             }

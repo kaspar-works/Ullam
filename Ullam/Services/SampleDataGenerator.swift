@@ -22,7 +22,7 @@ final class SampleDataGenerator {
         if !oldPages.isEmpty { return }
 
         // Only seed if diary has very few entries (fresh install)
-        if diary.pages.count > 5 { return }
+        if (diary.pages?.count ?? 0) > 5 { return }
 
         Task {
             await generateSampleEntries(diaryManager: diaryManager)

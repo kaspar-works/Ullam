@@ -84,12 +84,6 @@ struct TodayFeedView: View {
         // Load recent pages (last 14 days) for the feed
         pages = diaryManager.getRecentPages(days: 14)
 
-        // Auto-create today's page if none exist
-        let todayPages = diaryManager.getPages(for: selectedDate)
-        if todayPages.isEmpty, let newPage = diaryManager.createPage(for: selectedDate) {
-            pages.insert(newPage, at: 0)
-        }
-
         // Decrypt all pages
         var results: [(page: Page, title: String, body: String, emojis: [String])] = []
         var totalWords = 0

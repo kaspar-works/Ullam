@@ -3,17 +3,17 @@ import SwiftData
 
 @Model
 final class DayMood {
-    @Attribute(.unique) var id: UUID
+    var id: UUID = UUID()
     var diary: Diary?
 
-    var date: Date
+    var date: Date = Date()
 
     // Single emoji for the day
     var encryptedEmoji: Data?
     var plaintextEmoji: String?
 
-    var createdAt: Date
-    var modifiedAt: Date
+    var createdAt: Date = Date()
+    var modifiedAt: Date = Date()
 
     var emoji: String? {
         get { plaintextEmoji }

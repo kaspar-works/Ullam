@@ -2,6 +2,8 @@ import SwiftUI
 import SwiftData
 
 #if os(iOS)
+import UIKit
+
 struct TodayFeedMobileView: View {
     @Bindable var diaryManager: DiaryManager
 
@@ -9,11 +11,11 @@ struct TodayFeedMobileView: View {
     @State private var decryptedPages: [(page: Page, title: String, body: String, emojis: [String])] = []
     @State private var isLoading = true
     @State private var selectedPage: Page?
-    @State private var showEditor = false
     @State private var dayMood: String?
     @State private var showMoodPicker = false
     @State private var pageToDelete: Page?
     @State private var showDeleteConfirmation = false
+    @State private var appeared = false
 
     private let selectedDate = Date()
 
@@ -23,7 +25,6 @@ struct TodayFeedMobileView: View {
         return formatter.string(from: selectedDate)
     }
 
-    /// Group pages by day
     private var groupedByDay: [(date: Date, entries: [(page: Page, title: String, body: String, emojis: [String])])] {
         var groups: [(date: Date, entries: [(page: Page, title: String, body: String, emojis: [String])])] = []
         let cal = Calendar.current
@@ -38,119 +39,58 @@ struct TodayFeedMobileView: View {
         return groups
     }
 
+    // MARK: - Body
+
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 0) {
-                // Date header
-                Text(formattedDate)
-                    .font(.system(size: 28, weight: .bold))
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 20)
-                    .padding(.top, 8)
-                    .padding(.bottom, 6)
+        ZStack {
+            // Background
+            feedBackground.ignoresSafeArea()
 
-                // Mood button
-                if let mood = dayMood {
-                    Button { showMoodPicker = true } label: {
-                        HStack(spacing: 6) {
-                            Text(mood).font(.system(size: 18))
-                            Text("Today's mood")
-                                .font(.system(size: 12))
-                                .foregroundStyle(AppTheme.dimText)
-                        }
+            ScrollView(.vertical, showsIndicators: false) {
+                VStack(alignment: .leading, spacing: 0) {
+                    // Header
+                    headerSection
+                        .padding(.horizontal, 20)
+                        .padding(.top, 8)
+                        .padding(.bottom, 20)
+
+                    // Content
+                    if isLoading {
+                        loadingState
+                    } else if decryptedPages.isEmpty {
+                        emptyState
+                    } else {
+                        timelineContent
                     }
-                    .buttonStyle(.plain)
-                    .padding(.horizontal, 20)
-                    .padding(.bottom, 16)
-                } else {
-                    Button { showMoodPicker = true } label: {
-                        HStack(spacing: 6) {
-                            Image(systemName: "face.smiling")
-                                .foregroundStyle(AppTheme.accent)
-                            Text("Set today's mood")
-                                .font(.system(size: 12))
-                                .foregroundStyle(AppTheme.accent)
-                        }
-                    }
-                    .buttonStyle(.plain)
-                    .padding(.horizontal, 20)
-                    .padding(.bottom, 16)
                 }
+                .padding(.bottom, 100)
+            }
 
-                if isLoading {
-                    ProgressView()
-                        .frame(maxWidth: .infinity)
-                        .padding(.top, 40)
-                } else if decryptedPages.isEmpty {
-                    emptyState
-                } else {
-                    ForEach(Array(groupedByDay.enumerated()), id: \.element.date) { groupIdx, group in
-                        // Date section header
-                        dateLabel(for: group.date)
-                            .padding(.horizontal, 20)
-                            .padding(.top, groupIdx == 0 ? 0 : 20)
-                            .padding(.bottom, 8)
-
-                        // Entry cards
-                        ForEach(group.entries, id: \.page.id) { entry in
-                            Button {
-                                selectedPage = entry.page
-                                showEditor = true
-                            } label: {
-                                entryCard(entry: entry)
-                            }
-                            .buttonStyle(.plain)
-                            .contextMenu {
-                                Button(role: .destructive) {
-                                    pageToDelete = entry.page
-                                    showDeleteConfirmation = true
-                                } label: {
-                                    Label("Delete Page", systemImage: "trash")
-                                }
-                            }
-                            .padding(.horizontal, 16)
-                            .padding(.bottom, 10)
-                        }
-                    }
+            // FAB
+            VStack {
+                Spacer()
+                HStack {
+                    Spacer()
+                    fabButton
+                        .padding(.trailing, 20)
+                        .padding(.bottom, 16)
                 }
             }
-            .padding(.bottom, 80)
-        }
-        .background(AppTheme.bg)
-        .overlay(alignment: .bottomTrailing) {
-            Button { createNewPage() } label: {
-                ZStack {
-                    Circle()
-                        .fill(AppTheme.accent)
-                        .frame(width: 52, height: 52)
-                        .shadow(color: AppTheme.accent.opacity(0.3), radius: 12, y: 4)
-                    Image(systemName: "plus")
-                        .font(.system(size: 22, weight: .medium))
-                        .foregroundStyle(.white)
-                }
-            }
-            .buttonStyle(.plain)
-            .padding(.trailing, 20)
-            .padding(.bottom, 16)
         }
         .task { await loadData() }
         .onChange(of: diaryManager.currentDiary?.id) { _, _ in
             Task { await loadData() }
         }
-        .sheet(isPresented: $showEditor) {
-            if let page = selectedPage {
-                NavigationStack {
-                    PageEditorMobileView(diaryManager: diaryManager, page: page, date: selectedDate)
-                        .toolbar {
-                            ToolbarItem(placement: .confirmationAction) {
-                                Button("Done") {
-                                    showEditor = false
-                                    Task { await loadData() }
-                                }
-                            }
-                        }
-                }
+        .onAppear {
+            withAnimation(.easeOut(duration: 0.6).delay(0.15)) {
+                appeared = true
             }
+        }
+        .sheet(item: $selectedPage, onDismiss: {
+            Task { await loadData() }
+        }) { page in
+            PageEditorMobileView(diaryManager: diaryManager, page: page, date: selectedDate)
+                .presentationBackground(AppTheme.bg)
         }
         .sheet(isPresented: $showMoodPicker) {
             EmojiPickerView(selectedEmoji: $dayMood) { emoji in
@@ -159,19 +99,352 @@ struct TodayFeedMobileView: View {
                 showMoodPicker = false
             }
             .presentationDetents([.medium])
+            .presentationBackground(.ultraThinMaterial)
         }
         .alert("Delete Page", isPresented: $showDeleteConfirmation) {
-            Button("Cancel", role: .cancel) {
-                pageToDelete = nil
-            }
+            Button("Cancel", role: .cancel) { pageToDelete = nil }
             Button("Delete", role: .destructive) {
-                if let page = pageToDelete {
-                    deletePage(page)
-                }
+                if let page = pageToDelete { deletePage(page) }
             }
         } message: {
             Text("Are you sure you want to delete this page? This action cannot be undone.")
         }
+    }
+
+    // MARK: - Background
+
+    private var feedBackground: some View {
+        ZStack {
+            LinearGradient(
+                colors: [
+                    Color(hex: 0x0B1120),
+                    Color(hex: 0x0F172A),
+                    Color(hex: 0x150F2D),
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+
+            RadialGradient(
+                colors: [AppTheme.accent.opacity(0.05), .clear],
+                center: .topLeading,
+                startRadius: 20,
+                endRadius: 350
+            )
+
+            RadialGradient(
+                colors: [AppTheme.gradientPink.opacity(0.03), .clear],
+                center: .bottomTrailing,
+                startRadius: 20,
+                endRadius: 300
+            )
+        }
+    }
+
+    // MARK: - Header
+
+    private var headerSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            // Date
+            Text(formattedDate)
+                .font(.custom("NewYork-Bold", size: 30, relativeTo: .largeTitle))
+                .foregroundStyle(.white)
+
+            // Mood row
+            Button { showMoodPicker = true } label: {
+                HStack(spacing: 8) {
+                    if let mood = dayMood {
+                        Text(mood)
+                            .font(.system(size: 20))
+
+                        Text("Today\u{2019}s mood")
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundStyle(.white.opacity(0.35))
+                    } else {
+                        ZStack {
+                            Circle()
+                                .fill(AppTheme.accent.opacity(0.12))
+                                .frame(width: 28, height: 28)
+                            Image(systemName: "face.smiling")
+                                .font(.system(size: 14))
+                                .foregroundStyle(AppTheme.accent)
+                        }
+
+                        Text("How are you feeling?")
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundStyle(AppTheme.accent.opacity(0.7))
+                    }
+
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundStyle(.white.opacity(0.15))
+                }
+            }
+            .buttonStyle(FeedButtonStyle())
+        }
+    }
+
+    // MARK: - Timeline Content
+
+    private var timelineContent: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            ForEach(Array(groupedByDay.enumerated()), id: \.element.date) { groupIdx, group in
+                // Section header
+                dateSectionHeader(for: group.date)
+                    .padding(.horizontal, 20)
+                    .padding(.top, groupIdx == 0 ? 0 : 24)
+                    .padding(.bottom, 12)
+
+                // Entry cards with timeline
+                ForEach(Array(group.entries.enumerated()), id: \.element.page.id) { entryIdx, entry in
+                    let globalIdx = globalIndex(groupIdx: groupIdx, entryIdx: entryIdx)
+                    let isLast = entryIdx == group.entries.count - 1
+
+                    timelineEntry(entry: entry, isLast: isLast)
+                        .opacity(appeared ? 1 : 0)
+                        .offset(y: appeared ? 0 : 12)
+                        .animation(
+                            .spring(response: 0.45, dampingFraction: 0.8)
+                            .delay(Double(globalIdx) * 0.06),
+                            value: appeared
+                        )
+                        .contextMenu {
+                            Button(role: .destructive) {
+                                pageToDelete = entry.page
+                                showDeleteConfirmation = true
+                            } label: {
+                                Label("Delete Page", systemImage: "trash")
+                            }
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.bottom, isLast ? 4 : 0)
+                }
+            }
+        }
+    }
+
+    // MARK: - Timeline Entry (with connector line)
+
+    private func timelineEntry(entry: (page: Page, title: String, body: String, emojis: [String]), isLast: Bool) -> some View {
+        HStack(alignment: .top, spacing: 12) {
+            // Timeline column
+            VStack(spacing: 0) {
+                // Time label
+                Text(formatTime(entry.page.createdAt))
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(.white.opacity(0.25))
+                    .frame(width: 48)
+
+                // Dot
+                Circle()
+                    .fill(
+                        entry.emojis.isEmpty ?
+                        .white.opacity(0.15) :
+                        AppTheme.accent.opacity(0.5)
+                    )
+                    .frame(width: 6, height: 6)
+                    .padding(.top, 6)
+
+                // Connector line
+                if !isLast {
+                    Rectangle()
+                        .fill(
+                            LinearGradient(
+                                colors: [.white.opacity(0.08), .white.opacity(0.03)],
+                                startPoint: .top,
+                                endPoint: .bottom
+                            )
+                        )
+                        .frame(width: 1)
+                        .frame(maxHeight: .infinity)
+                }
+            }
+            .frame(width: 48)
+
+            // Card
+            Button {
+                selectedPage = entry.page
+            } label: {
+                entryCard(entry: entry)
+            }
+            .buttonStyle(FeedCardButtonStyle())
+        }
+    }
+
+    // MARK: - Entry Card
+
+    private func entryCard(entry: (page: Page, title: String, body: String, emojis: [String])) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            // Title + emojis
+            HStack(alignment: .top) {
+                Text(entry.title.isEmpty ? "Untitled Entry" : entry.title)
+                    .font(.custom("NewYork-Bold", size: 17, relativeTo: .headline))
+                    .foregroundStyle(.white.opacity(entry.title.isEmpty ? 0.35 : 0.9))
+                    .lineLimit(2)
+
+                Spacer()
+
+                if !entry.emojis.isEmpty {
+                    HStack(spacing: 3) {
+                        ForEach(entry.emojis, id: \.self) { e in
+                            Text(e).font(.system(size: 14))
+                        }
+                    }
+                }
+            }
+
+            // Body preview
+            if !entry.body.isEmpty {
+                Text(String(entry.body.prefix(160)))
+                    .font(.system(size: 14))
+                    .foregroundStyle(.white.opacity(0.4))
+                    .lineSpacing(5)
+                    .lineLimit(4)
+            } else {
+                Text("Tap to start writing\u{2026}")
+                    .font(.system(size: 14, weight: .light))
+                    .foregroundStyle(.white.opacity(0.15))
+                    .italic()
+            }
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(.white.opacity(0.04))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .stroke(.white.opacity(0.06), lineWidth: 1)
+                )
+        )
+        .padding(.bottom, 10)
+    }
+
+    // MARK: - FAB
+
+    private var fabButton: some View {
+        Button {
+            createNewPage()
+            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+        } label: {
+            ZStack {
+                // Glow
+                Circle()
+                    .fill(
+                        RadialGradient(
+                            colors: [AppTheme.accent.opacity(0.4), .clear],
+                            center: .center,
+                            startRadius: 10,
+                            endRadius: 40
+                        )
+                    )
+                    .frame(width: 70, height: 70)
+
+                // Button
+                Circle()
+                    .fill(
+                        LinearGradient(
+                            colors: [AppTheme.accent, Color(hex: 0x7C3AED)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .frame(width: 56, height: 56)
+                    .shadow(color: AppTheme.accent.opacity(0.35), radius: 16, y: 6)
+                    .overlay(
+                        Circle()
+                            .stroke(.white.opacity(0.15), lineWidth: 1)
+                    )
+
+                Image(systemName: "plus")
+                    .font(.system(size: 22, weight: .medium))
+                    .foregroundStyle(.white)
+            }
+        }
+        .buttonStyle(FeedButtonStyle())
+    }
+
+    // MARK: - Section Header
+
+    private func dateSectionHeader(for date: Date) -> some View {
+        let cal = Calendar.current
+        let label: String
+        if cal.isDateInToday(date) { label = "Today" }
+        else if cal.isDateInYesterday(date) { label = "Yesterday" }
+        else {
+            let f = DateFormatter()
+            f.dateFormat = "EEEE, MMMM d"
+            label = f.string(from: date)
+        }
+
+        return HStack(spacing: 8) {
+            Text(label)
+                .font(.system(size: 13, weight: .bold))
+                .foregroundStyle(.white.opacity(0.5))
+
+            Rectangle()
+                .fill(.white.opacity(0.06))
+                .frame(height: 1)
+        }
+    }
+
+    // MARK: - Empty State
+
+    private var emptyState: some View {
+        VStack(spacing: 16) {
+            Spacer().frame(height: 40)
+
+            ZStack {
+                Circle()
+                    .fill(AppTheme.accent.opacity(0.06))
+                    .frame(width: 80, height: 80)
+
+                Image(systemName: "text.book.closed")
+                    .font(.system(size: 32))
+                    .foregroundStyle(AppTheme.accent.opacity(0.4))
+            }
+
+            VStack(spacing: 6) {
+                Text("Your story starts here")
+                    .font(.custom("NewYork-Bold", size: 20, relativeTo: .title3))
+                    .foregroundStyle(.white.opacity(0.7))
+
+                Text("Tap + to write your first page today")
+                    .font(.system(size: 14))
+                    .foregroundStyle(.white.opacity(0.3))
+            }
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    // MARK: - Loading
+
+    private var loadingState: some View {
+        VStack(spacing: 12) {
+            ProgressView()
+                .tint(.white.opacity(0.3))
+            Text("Loading your pages\u{2026}")
+                .font(.system(size: 12))
+                .foregroundStyle(.white.opacity(0.2))
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.top, 60)
+    }
+
+    // MARK: - Helpers
+
+    private func globalIndex(groupIdx: Int, entryIdx: Int) -> Int {
+        var idx = 0
+        for i in 0..<groupIdx {
+            idx += groupedByDay[i].entries.count
+        }
+        return idx + entryIdx
+    }
+
+    private func formatTime(_ date: Date) -> String {
+        let f = DateFormatter()
+        f.dateFormat = "h:mm a"
+        return f.string(from: date)
     }
 
     // MARK: - Data
@@ -179,11 +452,6 @@ struct TodayFeedMobileView: View {
     private func loadData() async {
         isLoading = true
         pages = diaryManager.getRecentPages(days: 14)
-
-        let todayPages = diaryManager.getPages(for: selectedDate)
-        if todayPages.isEmpty, let newPage = diaryManager.createPage(for: selectedDate) {
-            pages.insert(newPage, at: 0)
-        }
 
         var results: [(page: Page, title: String, body: String, emojis: [String])] = []
         for page in pages {
@@ -207,7 +475,6 @@ struct TodayFeedMobileView: View {
     private func createNewPage() {
         if let newPage = diaryManager.createPage(for: selectedDate) {
             selectedPage = newPage
-            showEditor = true
         }
     }
 
@@ -217,87 +484,25 @@ struct TodayFeedMobileView: View {
         diaryManager.deletePage(page)
         pageToDelete = nil
     }
+}
 
-    // MARK: - Subviews
+// MARK: - Button Styles
 
-    private var emptyState: some View {
-        VStack(spacing: 12) {
-            Image(systemName: "doc.text")
-                .font(.system(size: 36))
-                .foregroundStyle(AppTheme.dimText)
-            Text("No entries yet")
-                .font(.system(size: 16, weight: .medium))
-                .foregroundStyle(AppTheme.mutedText)
-            Text("Tap + to create your first entry")
-                .font(.system(size: 13))
-                .foregroundStyle(AppTheme.dimText)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.top, 60)
+private struct FeedButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.95 : 1.0)
+            .opacity(configuration.isPressed ? 0.8 : 1.0)
+            .animation(.easeOut(duration: 0.15), value: configuration.isPressed)
     }
+}
 
-    private func dateLabel(for date: Date) -> some View {
-        let cal = Calendar.current
-        let label: String
-        if cal.isDateInToday(date) { label = "Today" }
-        else if cal.isDateInYesterday(date) { label = "Yesterday" }
-        else {
-            let f = DateFormatter()
-            f.dateFormat = "EEEE, MMMM d"
-            label = f.string(from: date)
-        }
-        return Text(label)
-            .font(.system(size: 14, weight: .bold))
-            .foregroundStyle(.white.opacity(0.6))
-    }
-
-    private func entryCard(entry: (page: Page, title: String, body: String, emojis: [String])) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            // Time + emojis row
-            HStack(spacing: 6) {
-                Text(formatTime(entry.page.createdAt))
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(AppTheme.dimText)
-                ForEach(entry.emojis, id: \.self) { e in
-                    Text(e).font(.system(size: 12))
-                }
-                Spacer()
-            }
-            .padding(.bottom, 4)
-
-            // Card
-            VStack(alignment: .leading, spacing: 8) {
-                Text(entry.title.isEmpty ? "Untitled Entry" : entry.title)
-                    .font(.system(size: 18, weight: .bold, design: .serif))
-                    .foregroundStyle(.black.opacity(0.85))
-                    .lineLimit(2)
-
-                if !entry.body.isEmpty {
-                    Text(String(entry.body.prefix(150)))
-                        .font(.system(size: 14))
-                        .foregroundStyle(.black.opacity(0.5))
-                        .lineSpacing(4)
-                        .lineLimit(4)
-                } else {
-                    Text("Tap to start writing...")
-                        .font(.system(size: 14))
-                        .foregroundStyle(.black.opacity(0.25))
-                        .italic()
-                }
-            }
-            .padding(16)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(
-                RoundedRectangle(cornerRadius: 16)
-                    .fill(AppTheme.cardBg)
-            )
-        }
-    }
-
-    private func formatTime(_ date: Date) -> String {
-        let f = DateFormatter()
-        f.dateFormat = "hh:mm a"
-        return f.string(from: date)
+private struct FeedCardButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.98 : 1.0)
+            .opacity(configuration.isPressed ? 0.85 : 1.0)
+            .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
     }
 }
 

@@ -8,7 +8,7 @@ enum StoragePreference: String, Codable {
 
 @Model
 final class Diary {
-    @Attribute(.unique) var id: UUID
+    var id: UUID = UUID()
 
     // For unprotected diaries: stored in plaintext
     // For protected diaries: name is encrypted with diary's key
@@ -18,7 +18,7 @@ final class Diary {
     // Security fields (always plaintext for lookup)
     var pincodeHash: Data?
     var encryptionSalt: Data?
-    var isProtected: Bool
+    var isProtected: Bool = false
 
     // Visibility - if true, diary appears in switch list
     var isVisibleOnSwitch: Bool = true
@@ -26,14 +26,14 @@ final class Diary {
     // Storage preference for this diary
     var storagePreference: StoragePreference = StoragePreference.iCloud
 
-    var createdAt: Date
-    var modifiedAt: Date
+    var createdAt: Date = Date()
+    var modifiedAt: Date = Date()
 
     @Relationship(deleteRule: .cascade, inverse: \Page.diary)
-    var pages: [Page] = []
+    var pages: [Page]?
 
     @Relationship(deleteRule: .cascade, inverse: \DayMood.diary)
-    var dayMoods: [DayMood] = []
+    var dayMoods: [DayMood]?
 
     var name: String {
         get { plaintextName ?? "Unknown" }
@@ -48,5 +48,7 @@ final class Diary {
         self.storagePreference = storagePreference
         self.createdAt = Date()
         self.modifiedAt = Date()
+        self.pages = []
+        self.dayMoods = []
     }
 }

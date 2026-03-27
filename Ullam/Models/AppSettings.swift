@@ -3,10 +3,10 @@ import SwiftData
 
 @Model
 final class AppSettings {
-    @Attribute(.unique) var id: UUID
+    var id: UUID = UUID()
 
     var defaultDiaryId: UUID?
-    var hasCompletedOnboarding: Bool
+    var hasCompletedOnboarding: Bool = false
     var lastOpenedDate: Date?
 
     init() {

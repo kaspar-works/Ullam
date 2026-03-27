@@ -892,10 +892,7 @@ struct MainTabView: View {
         if let firstPage = pages.first {
             currentPage = firstPage
         } else {
-            if let newPage = diaryManager.createPage(for: selectedDate) {
-                pages = [newPage]
-                currentPage = newPage
-            }
+            currentPage = nil
         }
 
         Task {

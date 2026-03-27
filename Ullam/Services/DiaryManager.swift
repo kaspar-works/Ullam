@@ -1,6 +1,11 @@
 import Foundation
 import SwiftData
 import CryptoKit
+#if canImport(UIKit)
+import UIKit
+#elseif canImport(AppKit)
+import AppKit
+#endif
 
 @MainActor
 @Observable
@@ -143,7 +148,7 @@ final class DiaryManager {
         diary.encryptedName = try? await encryptionManager.encryptString(diary.name, using: key)
 
         // Re-encrypt all existing pages
-        for page in diary.pages {
+        for page in diary.pages ?? [] {
             // First decrypt with old key (if any) or read plaintext
             let title = page.plaintextTitle ?? ""
             let subtitle = page.plaintextSubtitle
@@ -171,7 +176,7 @@ final class DiaryManager {
         }
 
         // Re-encrypt day moods
-        for mood in diary.dayMoods {
+        for mood in (diary.dayMoods ?? []) {
             if let emoji = mood.plaintextEmoji {
                 mood.encryptedEmoji = try? await encryptionManager.encryptString(emoji, using: key)
                 mood.plaintextEmoji = nil
@@ -188,7 +193,7 @@ final class DiaryManager {
         guard let diary = currentDiary, diary.isProtected, let key = currentKey else { return false }
 
         // Decrypt all pages back to plaintext
-        for page in diary.pages {
+        for page in diary.pages ?? [] {
             if let encTitle = page.encryptedTitle {
                 page.plaintextTitle = try? await encryptionManager.decryptString(encTitle, using: key)
             }
@@ -213,7 +218,7 @@ final class DiaryManager {
         }
 
         // Decrypt day moods
-        for mood in diary.dayMoods {
+        for mood in (diary.dayMoods ?? []) {
             if let encEmoji = mood.encryptedEmoji {
                 mood.plaintextEmoji = try? await encryptionManager.decryptString(encEmoji, using: key)
                 mood.encryptedEmoji = nil

@@ -39,6 +39,7 @@ struct PageEditorView: View {
     @State private var selectedTextColor: Color = .black
     @State private var isFocusMode: Bool = false
     @State private var showSaveIndicator: Bool = false
+    @State private var wordCount: Int = 0
     @Binding var attachedImages: [ImageAttachment]
 
     private let maxEmojis = 3
@@ -46,7 +47,7 @@ struct PageEditorView: View {
 
     private var formattedDate: String {
         let formatter = DateFormatter()
-        formatter.dateFormat = "MMMM d, yyyy"
+        formatter.dateFormat = "EEEE, MMMM d, yyyy"
         return formatter.string(from: date)
     }
 
@@ -57,20 +58,47 @@ struct PageEditorView: View {
     }
 
     var body: some View {
-        ZStack(alignment: .topTrailing) {
+        ZStack {
+            // Deep background
+            ZStack {
+                AppTheme.bg
+                RadialGradient(
+                    colors: [AppTheme.accent.opacity(0.04), Color.clear],
+                    center: .topLeading,
+                    startRadius: 0,
+                    endRadius: 500
+                )
+                RadialGradient(
+                    colors: [AppTheme.gradientPink.opacity(0.02), Color.clear],
+                    center: .bottomTrailing,
+                    startRadius: 0,
+                    endRadius: 400
+                )
+            }
+
             VStack(spacing: 0) {
-                // Title field (above the card, on dark bg)
+                // Title
                 HStack(alignment: .center) {
-                    TextField("Untitled Entry", text: $title)
-                        .font(.system(size: 32, weight: .light, design: .serif))
-                        .foregroundStyle(.white.opacity(title.isEmpty ? 0.2 : 0.85))
+                    TextField("Give your thoughts a title\u{2026}", text: $title)
+                        .font(.custom("NewYork-Bold", size: 32, relativeTo: .largeTitle))
+                        .foregroundStyle(.white.opacity(title.isEmpty ? 0.2 : 0.9))
                         .textFieldStyle(.plain)
 
+                    Spacer()
+
                     if showSaveIndicator {
-                        Text("Saved \u{2713}")
+                        HStack(spacing: 4) {
+                            Image(systemName: "checkmark.circle.fill")
+                                .font(.system(size: 10))
+                            Text("Saved")
+                                .font(.system(size: 11, weight: .medium))
+                        }
+                        .foregroundStyle(AppTheme.accent.opacity(0.7))
+                        .transition(.opacity.combined(with: .scale(scale: 0.9)))
+                    } else if wordCount > 0 {
+                        Text("\(wordCount) words")
                             .font(.system(size: 11, weight: .medium))
-                            .foregroundStyle(AppTheme.accent)
-                            .transition(.opacity)
+                            .foregroundStyle(.white.opacity(0.2))
                     }
                 }
                 .padding(.horizontal, 24)
@@ -85,19 +113,23 @@ struct PageEditorView: View {
                         .padding(.bottom, 12)
                         .transition(.opacity.combined(with: .move(edge: .top)))
 
-                    // Formatting toolbar (always visible, above editor)
+                    // Formatting toolbar
                     formattingBar
                         .transition(.opacity.combined(with: .move(edge: .top)))
                 }
 
-                // Content card with rich text editor (fills remaining space)
+                // Editor
                 VStack(spacing: 0) {
                     RichTextEditor(
                         attributedText: $attributedContent,
-                        placeholder: "What's on your mind?",
+                        placeholder: "What\u{2019}s on your mind?",
                         focusOnAppear: true,
                         formatAction: $formatAction,
-                        onTextChange: { _ in saveNow() }
+                        onTextChange: { newText in
+                            saveNow()
+                            let words = newText.string.split(whereSeparator: { $0.isWhitespace || $0.isNewline })
+                            wordCount = words.count
+                        }
                     )
                 }
                 .background(AppTheme.cardBg)
@@ -106,28 +138,38 @@ struct PageEditorView: View {
                 .padding(.bottom, 8)
             }
 
-            // Floating "Exit Focus" button
+            // Floating Focus exit
             if isFocusMode {
-                Button {
-                    isFocusMode = false
-                } label: {
-                    HStack(spacing: 4) {
-                        Image(systemName: "eye")
-                            .font(.system(size: 11, weight: .medium))
-                        Text("Exit Focus")
-                            .font(.system(size: 11, weight: .medium))
+                VStack {
+                    HStack {
+                        Spacer()
+                        Button {
+                            isFocusMode = false
+                        } label: {
+                            HStack(spacing: 4) {
+                                Image(systemName: "eye")
+                                    .font(.system(size: 11, weight: .medium))
+                                Text("Exit Focus")
+                                    .font(.system(size: 11, weight: .semibold))
+                            }
+                            .foregroundStyle(.white.opacity(0.6))
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 7)
+                            .background(
+                                Capsule()
+                                    .fill(AppTheme.sidebarBg.opacity(0.85))
+                                    .overlay(
+                                        Capsule()
+                                            .stroke(.white.opacity(0.08), lineWidth: 1)
+                                    )
+                            )
+                        }
+                        .buttonStyle(.plain)
+                        .padding(.top, 12)
+                        .padding(.trailing, 20)
                     }
-                    .foregroundStyle(AppTheme.mutedText)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 6)
-                    .background(
-                        Capsule()
-                            .fill(AppTheme.sidebarBg.opacity(0.85))
-                    )
+                    Spacer()
                 }
-                .buttonStyle(.plain)
-                .padding(.top, 12)
-                .padding(.trailing, 20)
                 .transition(.opacity)
             }
         }
@@ -155,27 +197,19 @@ struct PageEditorView: View {
         }
         #if os(macOS)
         .background {
-            // Hidden buttons for keyboard shortcuts (macOS only)
             VStack {
                 Button("") { formatAction = .bold }
                     .keyboardShortcut("b", modifiers: .command)
-                    .frame(width: 0, height: 0)
-                    .opacity(0)
-
+                    .frame(width: 0, height: 0).opacity(0)
                 Button("") { formatAction = .italic }
                     .keyboardShortcut("i", modifiers: .command)
-                    .frame(width: 0, height: 0)
-                    .opacity(0)
-
+                    .frame(width: 0, height: 0).opacity(0)
                 Button("") { formatAction = .underline }
                     .keyboardShortcut("u", modifiers: .command)
-                    .frame(width: 0, height: 0)
-                    .opacity(0)
-
+                    .frame(width: 0, height: 0).opacity(0)
                 Button("") { formatAction = .highlight }
                     .keyboardShortcut("h", modifiers: [.command, .shift])
-                    .frame(width: 0, height: 0)
-                    .opacity(0)
+                    .frame(width: 0, height: 0).opacity(0)
             }
             .allowsHitTesting(false)
         }
@@ -186,12 +220,10 @@ struct PageEditorView: View {
 
     private func handleImageImport(_ result: Result<[URL], Error>) {
         guard case .success(let urls) = result else { return }
-
         for url in urls {
             guard attachedImages.count < maxImages else { break }
             guard url.startAccessingSecurityScopedResource() else { continue }
             defer { url.stopAccessingSecurityScopedResource() }
-
             if let data = try? Data(contentsOf: url) {
                 #if canImport(UIKit)
                 if let image = UIImage(data: data) {
@@ -210,60 +242,49 @@ struct PageEditorView: View {
 
     private var metadataRow: some View {
         HStack(spacing: 16) {
-            // Date
             HStack(spacing: 5) {
                 Image(systemName: "calendar")
                     .font(.system(size: 11))
                 Text(formattedDate)
-                    .font(.system(size: 12))
+                    .font(.system(size: 12, weight: .medium))
             }
-            .foregroundStyle(AppTheme.dimText)
+            .foregroundStyle(.white.opacity(0.3))
 
-            // Time
             HStack(spacing: 5) {
                 Image(systemName: "clock")
                     .font(.system(size: 11))
                 Text(formattedTime)
-                    .font(.system(size: 12))
+                    .font(.system(size: 12, weight: .medium))
             }
-            .foregroundStyle(AppTheme.dimText)
+            .foregroundStyle(.white.opacity(0.3))
 
-            // Diary name
             HStack(spacing: 5) {
-                Image(systemName: "mappin")
+                Image(systemName: "book.closed")
                     .font(.system(size: 11))
                 Text(diaryManager.currentDiary?.name ?? "Diary")
-                    .font(.system(size: 12))
+                    .font(.system(size: 12, weight: .medium))
             }
-            .foregroundStyle(AppTheme.dimText)
+            .foregroundStyle(.white.opacity(0.3))
 
             Spacer()
 
-            // Tag badge
+            // Emoji tags
             if !selectedEmojis.isEmpty {
                 HStack(spacing: 4) {
                     ForEach(selectedEmojis, id: \.self) { emoji in
-                        Text(emoji)
-                            .font(.system(size: 12))
+                        Text(emoji).font(.system(size: 12))
                     }
                 }
                 .padding(.horizontal, 10)
                 .padding(.vertical, 4)
                 .background(
                     Capsule()
-                        .stroke(AppTheme.dimText, lineWidth: 0.5)
+                        .fill(.white.opacity(0.04))
+                        .overlay(
+                            Capsule()
+                                .stroke(.white.opacity(0.08), lineWidth: 1)
+                        )
                 )
-            } else {
-                Text("NOCTURNAL")
-                    .font(.system(size: 10, weight: .semibold))
-                    .tracking(1)
-                    .foregroundStyle(AppTheme.mutedText)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 4)
-                    .background(
-                        Capsule()
-                            .stroke(AppTheme.dimText, lineWidth: 0.5)
-                    )
             }
         }
     }
@@ -272,9 +293,9 @@ struct PageEditorView: View {
 
     private func barSep() -> some View {
         Rectangle()
-            .fill(.white.opacity(0.1))
+            .fill(.white.opacity(0.08))
             .frame(width: 1, height: 20)
-            .padding(.horizontal, 2)
+            .padding(.horizontal, 3)
     }
 
     private var formattingBar: some View {
@@ -290,14 +311,12 @@ struct PageEditorView: View {
                     }
                     .buttonStyle(.plain)
                 }
-
                 if selectedEmojis.count < maxEmojis {
                     FormatButton(icon: "face.smiling", isActive: false) { showingEmojiPicker = true }
                 }
 
                 barSep()
 
-                // Text style
                 FormatButton(icon: "bold", isActive: false) { formatAction = .bold }
                 FormatButton(icon: "italic", isActive: false) { formatAction = .italic }
                 FormatButton(icon: "underline", isActive: false) { formatAction = .underline }
@@ -305,12 +324,10 @@ struct PageEditorView: View {
 
                 barSep()
 
-                // Highlight
                 FormatButton(icon: "highlighter", isActive: false) { formatAction = .highlight }
 
                 barSep()
 
-                // Block formatting
                 FormatButton(icon: "text.quote", isActive: false) { formatAction = .quote }
                 FormatButton(label: "H1", isActive: false) { formatAction = .heading }
                 FormatButton(label: "H2", isActive: false) { formatAction = .subheading }
@@ -318,30 +335,28 @@ struct PageEditorView: View {
 
                 barSep()
 
-                // Lists
                 FormatButton(icon: "list.bullet", isActive: false) { formatAction = .bulletList }
                 FormatButton(icon: "list.number", isActive: false) { formatAction = .numberedList }
 
                 barSep()
 
-                // Separator line
                 FormatButton(icon: "minus", isActive: false) { formatAction = .separator }
 
                 barSep()
 
-                // Text color
+                // Color picker
                 Button { showingColorPicker = true } label: {
                     ZStack {
                         Image(systemName: "paintbrush.pointed")
                             .font(.system(size: 13, weight: .medium))
-                            .foregroundStyle(AppTheme.mutedText)
+                            .foregroundStyle(.white.opacity(0.5))
                         Circle()
                             .fill(selectedTextColor)
                             .frame(width: 6, height: 6)
                             .offset(x: 7, y: 7)
                     }
                     .frame(width: 30, height: 30)
-                    .background(AppTheme.subtle)
+                    .background(.white.opacity(0.04))
                     .clipShape(RoundedRectangle(cornerRadius: 6))
                 }
                 .buttonStyle(.plain)
@@ -351,26 +366,23 @@ struct PageEditorView: View {
 
                 barSep()
 
-                // Image
                 FormatButton(icon: "photo", isActive: false) { showingImagePicker = true }
 
                 barSep()
 
-                // Voice-to-text
+                // Voice
                 Button { toggleVoiceInput() } label: {
                     Image(systemName: isListening ? "mic.fill" : "mic")
                         .font(.system(size: 14, weight: .medium))
-                        .foregroundStyle(isListening ? .red : AppTheme.mutedText)
+                        .foregroundStyle(isListening ? .red : .white.opacity(0.5))
                         .frame(width: 30, height: 30)
-                        .background(isListening ? Color.red.opacity(0.15) : AppTheme.subtle)
+                        .background(isListening ? Color.red.opacity(0.15) : .white.opacity(0.04))
                         .clipShape(RoundedRectangle(cornerRadius: 6))
-                        .animation(.easeInOut(duration: 0.2), value: isListening)
                 }
                 .buttonStyle(.plain)
 
                 barSep()
 
-                // Focus/Zen mode
                 FormatButton(icon: "text.viewfinder", isActive: false) {
                     isFocusMode = true
                 }
@@ -378,7 +390,14 @@ struct PageEditorView: View {
             .padding(.horizontal, 12)
         }
         .frame(height: 38)
-        .background(AppTheme.sidebarBg)
+        .background(
+            Rectangle()
+                .fill(AppTheme.sidebarBg.opacity(0.6))
+                .overlay(
+                    Rectangle()
+                        .fill(.white.opacity(0.02))
+                )
+        )
     }
 
     // MARK: - Color Palette
@@ -440,11 +459,7 @@ struct PageEditorView: View {
     @State private var audioEngine = AVAudioEngine()
 
     private func toggleVoiceInput() {
-        if isListening {
-            stopListening()
-        } else {
-            startListening()
-        }
+        if isListening { stopListening() } else { startListening() }
     }
 
     private func startListening() {
@@ -457,40 +472,29 @@ struct PageEditorView: View {
     }
 
     private func beginRecording() {
-        // Cancel any existing task
         recognitionTask?.cancel()
         recognitionTask = nil
-
         let request = SFSpeechAudioBufferRecognitionRequest()
         request.shouldReportPartialResults = true
         recognitionRequest = request
-
         let inputNode = audioEngine.inputNode
         let recordingFormat = inputNode.outputFormat(forBus: 0)
-
         inputNode.installTap(onBus: 0, bufferSize: 1024, format: recordingFormat) { buffer, _ in
             request.append(buffer)
         }
-
         audioEngine.prepare()
         do {
             try audioEngine.start()
             isListening = true
-        } catch {
-            print("Audio engine failed to start: \(error)")
-            return
-        }
+        } catch { return }
 
         recognitionTask = speechRecognizer?.recognitionTask(with: request) { result, error in
             if let result = result {
                 let spokenText = result.bestTranscription.formattedString
-
                 DispatchQueue.main.async {
-                    // Append spoken text to the content
                     let currentText = self.attributedContent.string
                     let separator = currentText.isEmpty ? "" : " "
                     let newText = currentText + separator + spokenText
-
                     #if canImport(UIKit)
                     let font = UIFont.preferredFont(forTextStyle: .body)
                     let color = UIColor.black.withAlphaComponent(0.8)
@@ -498,19 +502,12 @@ struct PageEditorView: View {
                     let font = NSFont.preferredFont(forTextStyle: .body)
                     let color = NSColor.black.withAlphaComponent(0.8)
                     #endif
-
-                    self.attributedContent = NSAttributedString(string: newText, attributes: [
-                        .font: font,
-                        .foregroundColor: color
-                    ])
+                    self.attributedContent = NSAttributedString(string: newText, attributes: [.font: font, .foregroundColor: color])
                     self.saveNow()
                 }
             }
-
             if error != nil || (result?.isFinal ?? false) {
-                DispatchQueue.main.async {
-                    self.stopListening()
-                }
+                DispatchQueue.main.async { self.stopListening() }
             }
         }
     }
@@ -529,11 +526,9 @@ struct PageEditorView: View {
 
     private func loadPage() async {
         guard !isLoaded else { return }
-
         if let decrypted = await diaryManager.decryptPage(page) {
             title = decrypted.title
             selectedEmojis = decrypted.emojis
-
             if let contentData = decrypted.content {
                 if let attributed = try? NSAttributedString(
                     data: contentData,
@@ -551,8 +546,9 @@ struct PageEditorView: View {
                     attributedContent = NSAttributedString(string: text)
                 }
             }
+            let words = attributedContent.string.split(whereSeparator: { $0.isWhitespace || $0.isNewline })
+            wordCount = words.count
         }
-
         isLoaded = true
     }
 
@@ -573,14 +569,7 @@ struct PageEditorView: View {
                 documentAttributes: [.documentType: NSAttributedString.DocumentType.rtf]
             )
         }
-
-        await diaryManager.savePage(
-            page,
-            title: title,
-            subtitle: nil,
-            content: contentData,
-            emojis: selectedEmojis
-        )
+        await diaryManager.savePage(page, title: title, subtitle: nil, content: contentData, emojis: selectedEmojis)
     }
 }
 
@@ -602,9 +591,9 @@ struct FormatButton: View {
                 }
             }
             .frame(width: 32, height: 32)
-            .foregroundStyle(isActive ? AppTheme.accent : AppTheme.mutedText)
-            .background(isActive ? AppTheme.accent.opacity(0.15) : .clear)
-            .clipShape(RoundedRectangle(cornerRadius: 6))
+            .foregroundStyle(isActive ? AppTheme.accent : .white.opacity(0.5))
+            .background(isActive ? AppTheme.accent.opacity(0.15) : .white.opacity(0.04))
+            .clipShape(RoundedRectangle(cornerRadius: 8))
         }
         .buttonStyle(.plain)
     }

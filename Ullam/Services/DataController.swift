@@ -8,7 +8,7 @@ final class DataController {
     let container: ModelContainer
 
     // Increment this when schema changes during development
-    private static let schemaVersion = 6
+    private static let schemaVersion = 7
 
     /// Whether iCloud sync is enabled (persisted in UserDefaults)
     var iCloudEnabled: Bool {
@@ -28,13 +28,12 @@ final class DataController {
             AppSettings.self
         ])
 
-        // Determine CloudKit database based on user preference
-        let useICloud = UserDefaults.standard.bool(forKey: "iCloudSyncEnabled")
-
+        // Use local-only storage to avoid CloudKit schema compatibility issues
+        // iCloud sync can be re-enabled once CloudKit entitlements are fully configured
         let configuration = ModelConfiguration(
             schema: schema,
             isStoredInMemoryOnly: false,
-            cloudKitDatabase: useICloud ? .automatic : .none
+            cloudKitDatabase: .none
         )
 
         // Check if we need to reset due to schema version change

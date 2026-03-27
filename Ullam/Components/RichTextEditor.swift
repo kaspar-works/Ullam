@@ -28,10 +28,27 @@ struct RichTextEditor: UIViewRepresentable {
         let textView = UITextView()
         textView.delegate = context.coordinator
         textView.allowsEditingTextAttributes = true
-        textView.font = .preferredFont(forTextStyle: .body)
         textView.backgroundColor = .clear
-        textView.textContainerInset = UIEdgeInsets(top: 20, left: 16, bottom: 20, right: 16)
+        textView.textContainerInset = UIEdgeInsets(top: 20, left: 20, bottom: 60, right: 20)
+        textView.textColor = .white.withAlphaComponent(0.8)
+        textView.tintColor = UIColor(red: 0.655, green: 0.545, blue: 0.98, alpha: 1.0)
+        textView.keyboardAppearance = .dark
         textView.attributedText = attributedText
+
+        // Default paragraph style with generous line spacing
+        let paragraphStyle = NSMutableParagraphStyle()
+        paragraphStyle.lineSpacing = 6
+        paragraphStyle.paragraphSpacing = 8
+
+        let bodyFont = UIFont.systemFont(ofSize: 17, weight: .regular)
+
+        textView.typingAttributes = [
+            .font: bodyFont,
+            .foregroundColor: UIColor.white.withAlphaComponent(0.8),
+            .paragraphStyle: paragraphStyle
+        ]
+
+        textView.font = bodyFont
 
         // Setup placeholder
         context.coordinator.textView = textView
@@ -89,13 +106,13 @@ struct RichTextEditor: UIViewRepresentable {
                 let label = UILabel()
                 label.text = parent.placeholder
                 label.font = .preferredFont(forTextStyle: .body)
-                label.textColor = .placeholderText
+                label.textColor = .white.withAlphaComponent(0.2)
                 label.translatesAutoresizingMaskIntoConstraints = false
                 textView.addSubview(label)
 
                 NSLayoutConstraint.activate([
                     label.topAnchor.constraint(equalTo: textView.topAnchor, constant: 20),
-                    label.leadingAnchor.constraint(equalTo: textView.leadingAnchor, constant: 21)
+                    label.leadingAnchor.constraint(equalTo: textView.leadingAnchor, constant: 25)
                 ])
 
                 placeholderLabel = label

@@ -3,10 +3,10 @@ import SwiftData
 
 @Model
 final class Page {
-    @Attribute(.unique) var id: UUID
+    var id: UUID = UUID()
     var diary: Diary?
 
-    var date: Date
+    var date: Date = Date()
 
     // Content - stored encrypted for protected diaries
     var encryptedContent: Data?
@@ -23,10 +23,10 @@ final class Page {
     var plaintextEmojis: [String]?
 
     @Relationship(deleteRule: .cascade, inverse: \MediaAttachment.page)
-    var mediaAttachments: [MediaAttachment] = []
+    var mediaAttachments: [MediaAttachment]?
 
-    var createdAt: Date
-    var modifiedAt: Date
+    var createdAt: Date = Date()
+    var modifiedAt: Date = Date()
 
     var title: String {
         get { plaintextTitle ?? "" }
@@ -50,5 +50,6 @@ final class Page {
         self.createdAt = Date()
         self.modifiedAt = Date()
         self.plaintextEmojis = []
+        self.mediaAttachments = []
     }
 }

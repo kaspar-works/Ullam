@@ -9,16 +9,16 @@ enum MediaType: String, Codable {
 
 @Model
 final class MediaAttachment {
-    @Attribute(.unique) var id: UUID
+    var id: UUID = UUID()
     var page: Page?
 
-    var mediaType: MediaType
-    var fileName: String
+    var mediaType: MediaType = MediaType.image
+    var fileName: String = ""
     var thumbnailFileName: String?
 
-    var isEncrypted: Bool
-    var orderIndex: Int
-    var createdAt: Date
+    var isEncrypted: Bool = false
+    var orderIndex: Int = 0
+    var createdAt: Date = Date()
 
     init(page: Page, mediaType: MediaType, fileName: String, orderIndex: Int = 0) {
         self.id = UUID()
